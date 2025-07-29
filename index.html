@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>제크와 콩의 요정 v2.9.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Jua', sans-serif;
+            touch-action: none;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #87CEEB;
+            cursor: crosshair;
+            display: block;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .modal-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: flex; justify-content: center; align-items: center; z-index: 50;
+        }
+        .modal-content {
+            background: white; padding: 40px; border-radius: 15px;
+            text-align: center; color: #333;
+        }
+        .restart-btn {
+            background-color: #4CAF50; color: white; padding: 10px 20px;
+            border: none; border-radius: 8px; font-size: 1.2em;
+            cursor: pointer; margin-top: 20px;
+        }
+        .instructions h3 {
+            font-size: 1.5rem;
+            color: #4ade80; /* green-400 */
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #4ade80;
+            padding-bottom: 0.5rem;
+        }
+        .instructions p, .instructions li {
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 0.75rem;
+        }
+        .instructions ul {
+            list-style-position: inside;
+            padding-left: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-800 flex items-center justify-center h-screen">
+
+    <div class="w-full h-full flex flex-col lg:flex-row items-center justify-center p-4 gap-8">
+        <!-- Game Canvas Area -->
+        <div class="w-full max-w-md mx-auto">
+            <div id="infoPanel" class="text-white text-center p-4 rounded-t-lg bg-gray-900">
+                <h1 class="text-2xl font-bold">제크와 콩의 요정</h1>
+                <div class="flex justify-around mt-2">
+                    <p>높이: <span id="score">0</span> m</p>
+                    <p>❤️ <span id="heartCount">0</span></p>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-4 mt-2">
+                    <div id="cooldownBar" class="bg-blue-500 h-4 rounded-full transition-all duration-200" style="width: 100%;"></div>
+                </div>
+                <p id="cooldownText" class="text-sm mt-1">가지 만들기 가능!</p>
+            </div>
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <!-- Instructions Area -->
+        <div class="w-full lg:w-1/3 max-w-md bg-gray-900 text-white p-6 rounded-lg instructions hidden lg:block">
+            <h3>🎮 게임 방법</h3>
+            <p><strong>1. 가지 만들기:</strong> 마우스를 클릭해서 콩나무 줄기 사이에 <strong>가지</strong>를 만들어 제크가 다른 줄기로 이동할 수 있게 도와주세요.</p>
+            <ul>
+                <li>가지를 한 번 만들면 잠시 동안 <strong>쿨타임</strong>이 필요해요.</li>
+            </ul>
+            <p><strong>2. 벌레 피하기:</strong> 하늘에서 떨어지는 <strong>벌레</strong>에 닿으면 게임이 종료되니 조심하세요!</p>
+            <p><strong>3. 쿨타임 부스트 (시계 아이템):</strong> 이 아이템을 먹으면 7초 동안 가지를 아주 빠르게 만들 수 있어요.</p>
+            <p><strong>4. 하트 아이템 (❤️):</strong> 하트 아이템을 먹으면 획득한 하트 개수가 기록돼요. 최대한 많이 모아보세요!</p>
+        </div>
+    </div>
+
+
+    <div id="gameOverModal" class="hidden modal-bg">
+        <div class="modal-content">
+            <h2 class="text-3xl font-bold mb-4">게임 오버!</h2>
+            <p class="text-xl">최고 높이: <span id="finalScore">0</span> m</p>
+            <p class="text-xl">획득한 하트: <span id="finalHeartCount">0</span> 개</p>
+            <button id="restartButton" class="restart-btn">다시 시작</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI 요소
+        const scoreEl = document.getElementById('score');
+        const heartCountEl = document.getElementById('heartCount');
+        const cooldownBar = document.getElementById('cooldownBar');
+        const cooldownText = document.getElementById('cooldownText');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const finalScoreEl = document.getElementById('finalScore');
+        const finalHeartCountEl = document.getElementById('finalHeartCount');
+        const restartButton = document.getElementById('restartButton');
+
+        let canvasWidth, canvasHeight;
+        let score = 0, totalDistance = 0, heartCount = 0;
+        let gameSpeed = 2, isGameOver = false, animationFrameId;
+
+        const beanstalkCount = 3;
+        const beanstalkPositions = [];
+        
+        const branchCooldown = 1800;
+        const maxBugs = 8;
+        let bugSpawnInterval = 2000;
+        let lastBugSpawnTime = 0;
+        
+        let isCooldownBoosted = false;
+        let cooldownBoostEndTime = 0;
+        const boostedBranchCooldown = 400;
+        const cooldownBoostDuration = 7000;
+        
+        let lastBranchTime = 0;
+
+        // --- 이미지 로드 ---
+        const jackImage = new Image();
+        let isJackImageLoaded = false;
+        jackImage.src = 'https://i.imgur.com/Xzd5Spc.png';
+        jackImage.onload = () => { isJackImageLoaded = true; };
+        jackImage.onerror = () => { console.error("캐릭터 이미지를 불러오는 데 실패했습니다."); };
+
+        const beanstalkImage = new Image();
+        let isBeanstalkImageLoaded = false;
+        beanstalkImage.src = 'https://i.imgur.com/pegdl9L.png';
+        beanstalkImage.onload = () => { isBeanstalkImageLoaded = true; };
+        beanstalkImage.onerror = () => { console.error("콩나무 이미지를 불러오는 데 실패했습니다."); };
+
+
+        const jack = {
+            width: 40, height: 40,
+            x: 0, y: 0,
+            speed: gameSpeed, stalkIndex: 1,
+            isMovingHorizontally: false, targetX: 0, color: '#2ecc71'
+        };
+
+        let bugs = [], branches = [], clouds = [], items = [];
+
+        let isAudioInitialized = false;
+        let bgmLoop, sfxBranch, sfxItem, sfxGameOver;
+
+        function initAudio() {
+            const bgmSynth = new Tone.FMSynth({ harmonicity: 3, modulationIndex: 10, detune: 0, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 1 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.5, decay: 0, sustain: 1, release: 0.5 } }).toDestination();
+            sfxBranch = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.01, release: 0.1 } }).toDestination();
+            sfxItem = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.01, release: 0.1 } }).toDestination();
+            sfxGameOver = new Tone.MembraneSynth().toDestination();
+            const bgmNotes = ["C4", "E4", "G4", "A4"];
+            let noteIndex = 0;
+            bgmLoop = new Tone.Loop(time => {
+                let note = bgmNotes[noteIndex % bgmNotes.length];
+                bgmSynth.triggerAttackRelease(note, "8n", time);
+                noteIndex++;
+            }, "4n").start(0);
+            isAudioInitialized = true;
+        }
+
+        function setCanvasDimensions() {
+            const container = canvas.parentElement;
+            canvasWidth = container.clientWidth;
+            canvasHeight = Math.min(window.innerHeight * 0.75, canvasWidth * 1.5);
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+        }
+
+        function init() {
+            isGameOver = false;
+            score = 0; totalDistance = 0; heartCount = 0;
+            gameSpeed = 2;
+            bugs = []; branches = []; clouds = []; items = [];
+            lastBranchTime = 0;
+            lastBugSpawnTime = 0;
+            bugSpawnInterval = 2000;
+            isCooldownBoosted = false;
+            cooldownBoostEndTime = 0;
+
+            beanstalkPositions.length = 0;
+            for (let i = 0; i < beanstalkCount; i++) {
+                beanstalkPositions.push((canvasWidth / (beanstalkCount + 1)) * (i + 1));
+            }
+
+            jack.stalkIndex = 1;
+            jack.x = beanstalkPositions[jack.stalkIndex] - jack.width / 2;
+            jack.y = canvasHeight - jack.height - 20;
+            jack.isMovingHorizontally = false;
+
+            scoreEl.textContent = 0;
+            heartCountEl.textContent = 0;
+            gameOverModal.classList.add('hidden');
+            
+            for(let i=0; i < 5; i++) spawnCloud(true);
+            
+            if (isAudioInitialized) {
+                Tone.Transport.start();
+            }
+
+            if(animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function spawnCloud(isInitial = false) {
+            clouds.push({ x: Math.random() * canvasWidth, y: isInitial ? Math.random() * canvasHeight : -60, radius: 20 + Math.random() * 25, speed: 0.5 + Math.random() * 0.5 });
+        }
+
+        function spawnBug() {
+            const now = Date.now();
+            if (bugs.length < maxBugs && now - lastBugSpawnTime > bugSpawnInterval) {
+                lastBugSpawnTime = now;
+                const stalkIndex = Math.floor(Math.random() * beanstalkCount);
+                bugs.push({ x: beanstalkPositions[stalkIndex] - 15, y: -30, width: 30, height: 30, speed: gameSpeed * (0.8 + Math.random() * 0.7), color: '#e74c3c' });
+                bugSpawnInterval = Math.max(500, 2000 - score * 5);
+            }
+        }
+        
+        function spawnStalkItem() {
+            if (Math.random() < 0.005) {
+                const stalkIndex = Math.floor(Math.random() * beanstalkCount);
+                const itemType = Math.random() < 0.5 ? 'cooldown' : 'heart';
+                const itemSize = 40;
+                items.push({ x: beanstalkPositions[stalkIndex] - itemSize / 2, y: -itemSize, width: itemSize, height: itemSize, type: itemType, speed: gameSpeed * 0.6 });
+            }
+        }
+
+        function createBranch(e) {
+            if (!isAudioInitialized) {
+                Tone.start();
+                initAudio();
+                Tone.Transport.start();
+            }
+            const now = Date.now();
+            const currentCooldown = isCooldownBoosted ? boostedBranchCooldown : branchCooldown;
+            if (now - lastBranchTime < currentCooldown) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            let fromStalk = -1, toStalk = -1;
+            for (let i = 0; i < beanstalkCount - 1; i++) {
+                if (x > beanstalkPositions[i] && x < beanstalkPositions[i + 1]) {
+                    if (jack.stalkIndex === i) { fromStalk = i; toStalk = i + 1; } 
+                    else if (jack.stalkIndex === i + 1) { fromStalk = i + 1; toStalk = i; }
+                    break;
+                }
+            }
+
+            if (fromStalk !== -1) {
+                branches.push({ x1: beanstalkPositions[fromStalk], y1: y, x2: beanstalkPositions[toStalk], y2: y, color: '#8B4513', used: false });
+                lastBranchTime = now;
+                if (isAudioInitialized) {
+                    sfxBranch.triggerAttackRelease("C4", "16n");
+                }
+
+                if (Math.random() < 0.25) {
+                    const itemType = Math.random() < 0.5 ? 'cooldown' : 'heart';
+                    const itemSize = 40;
+                    items.push({ x: (beanstalkPositions[fromStalk] + beanstalkPositions[toStalk]) / 2 - itemSize / 2, y: y - itemSize / 2, width: itemSize, height: itemSize, type: itemType, speed: 0 });
+                }
+            }
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            if (jack.isMovingHorizontally) {
+                const dx = jack.targetX - jack.x;
+                if (Math.abs(dx) < 5) { jack.x = jack.targetX; jack.isMovingHorizontally = false; } 
+                else { jack.x += dx * 0.1; }
+            } else {
+                jack.y -= jack.speed;
+            }
+
+            let scrollAmount = 0;
+            const scrollThreshold = canvasHeight * 2 / 3;
+            if (jack.y < scrollThreshold) {
+                scrollAmount = scrollThreshold - jack.y;
+                jack.y = scrollThreshold;
+                branches.forEach(b => { b.y1 += scrollAmount; b.y2 += scrollAmount; });
+                bugs.forEach(bug => bug.y += scrollAmount);
+                clouds.forEach(c => c.y += scrollAmount * c.speed * 0.5);
+                items.forEach(item => item.y += scrollAmount);
+                totalDistance += scrollAmount;
+            }
+            
+            score = Math.floor(totalDistance / 10);
+            gameSpeed = 2 + (score / 500);
+            jack.speed = gameSpeed;
+            scoreEl.textContent = score;
+
+            bugs = bugs.filter(bug => bug.y < canvasHeight + 50);
+            items = items.filter(item => item.y < canvasHeight + 50);
+            branches = branches.filter(b => b.y1 < canvasHeight + 20);
+            clouds = clouds.filter(c => c.y < canvasHeight + c.radius);
+            if(Math.random() < 0.01) spawnCloud();
+
+            bugs.forEach(bug => {
+                bug.y += bug.speed;
+                if (jack.x < bug.x + bug.width && jack.x + jack.width > bug.x && jack.y < bug.y + bug.height && jack.y + jack.height > bug.y) gameOver();
+            });
+
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                if(item.speed) item.y += item.speed;
+                if (jack.x < item.x + item.width && jack.x + jack.width > item.x && jack.y < item.y + item.height && jack.y + jack.height > item.y) {
+                    
+                    if (item.type === 'cooldown') {
+                        isCooldownBoosted = true;
+                        cooldownBoostEndTime = Date.now() + cooldownBoostDuration;
+                        if (isAudioInitialized) sfxItem.triggerAttackRelease("G5", "16n");
+                    } else if (item.type === 'heart') {
+                        heartCount++;
+                        heartCountEl.textContent = heartCount;
+                        if (isAudioInitialized) sfxItem.triggerAttackRelease("C6", "16n");
+                    }
+                    items.splice(i, 1);
+                }
+            }
+            
+            if (isCooldownBoosted && Date.now() > cooldownBoostEndTime) isCooldownBoosted = false;
+
+            if (!jack.isMovingHorizontally) {
+                branches.forEach(branch => {
+                    if (!branch.used && jack.y < branch.y1 && (jack.y + jack.height) > branch.y1) {
+                        if (beanstalkPositions[jack.stalkIndex] === branch.x1) {
+                            branch.used = true; jack.isMovingHorizontally = true;
+                            jack.stalkIndex = beanstalkPositions.indexOf(branch.x2);
+                            jack.targetX = beanstalkPositions[jack.stalkIndex] - jack.width / 2;
+                        } else if (beanstalkPositions[jack.stalkIndex] === branch.x2) {
+                            branch.used = true; jack.isMovingHorizontally = true;
+                            jack.stalkIndex = beanstalkPositions.indexOf(branch.x1);
+                            jack.targetX = beanstalkPositions[jack.stalkIndex] - jack.width / 2;
+                        }
+                    }
+                });
+            }
+            
+            spawnBug();
+            spawnStalkItem();
+        }
+
+        function draw() {
+            if (isGameOver) return;
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            clouds.forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2); ctx.fill(); });
+            
+            if (isBeanstalkImageLoaded) {
+                const stalkWidth = 30;
+                const imgHeight = beanstalkImage.height;
+                if (imgHeight > 0) {
+                    beanstalkPositions.forEach(pos => {
+                        const yOffset = (totalDistance * 0.5) % imgHeight;
+                        for (let y = -yOffset; y < canvasHeight; y += imgHeight) {
+                            ctx.drawImage(beanstalkImage, pos - stalkWidth / 2, y, stalkWidth, imgHeight);
+                        }
+                    });
+                }
+            } else {
+                ctx.strokeStyle = '#654321'; ctx.lineWidth = 10;
+                beanstalkPositions.forEach(pos => { ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, canvasHeight); ctx.stroke(); });
+            }
+
+            ctx.lineWidth = 8;
+            branches.forEach(b => { ctx.strokeStyle = b.color; ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke(); });
+            
+            items.forEach(item => {
+                ctx.save();
+                if (item.type === 'heart') {
+                    ctx.fillStyle = '#e91e63';
+                    ctx.beginPath();
+                    const d = Math.min(item.width, item.height);
+                    const k = item.x;
+                    const l = item.y;
+                    ctx.moveTo(k, l + d / 4);
+                    ctx.quadraticCurveTo(k, l, k + d / 4, l);
+                    ctx.quadraticCurveTo(k + d / 2, l, k + d / 2, l + d / 4);
+                    ctx.quadraticCurveTo(k + d / 2, l, k + d * 3/4, l);
+                    ctx.quadraticCurveTo(k + d, l, k + d, l + d / 4);
+                    ctx.quadraticCurveTo(k + d, l + d / 2, k + d * 3/4, l + d * 3/4);
+                    ctx.lineTo(k + d / 2, l + d);
+                    ctx.lineTo(k + d / 4, l + d * 3/4);
+                    ctx.quadraticCurveTo(k, l + d / 2, k, l + d / 4);
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = '#3498db';
+                    ctx.fillStyle = '#ecf0f1';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(item.x + item.width / 2, item.y + item.height / 2, item.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(item.x + item.width / 2, item.y + item.height / 2);
+                    ctx.lineTo(item.x + item.width / 2, item.y + 5);
+                    ctx.moveTo(item.x + item.width / 2, item.y + item.height / 2);
+                    ctx.lineTo(item.x + item.width - 5, item.y + item.height / 2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            });
+
+            bugs.forEach(bug => { ctx.fillStyle = bug.color; ctx.fillRect(bug.x, bug.y, bug.width, bug.height); });
+            
+            if (isJackImageLoaded) {
+                ctx.drawImage(jackImage, jack.x, jack.y, jack.width, jack.height);
+            } else {
+                ctx.fillStyle = jack.color;
+                ctx.fillRect(jack.x, jack.y, jack.width, jack.height);
+            }
+            
+            const currentCooldown = isCooldownBoosted ? boostedBranchCooldown : branchCooldown;
+            const cooldownProgress = Math.min((Date.now() - lastBranchTime) / currentCooldown, 1);
+            cooldownBar.style.width = `${cooldownProgress * 100}%`;
+            if (isCooldownBoosted) {
+                cooldownText.textContent = "쿨타임 부스트!";
+                cooldownBar.className = 'bg-green-500 h-4 rounded-full transition-all duration-200';
+            } else {
+                cooldownText.textContent = cooldownProgress >= 1 ? "가지 만들기 가능!" : "기다리는 중...";
+                cooldownBar.className = 'bg-blue-500 h-4 rounded-full transition-all duration-200';
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            cancelAnimationFrame(animationFrameId);
+            if(isAudioInitialized) {
+                Tone.Transport.stop();
+                sfxGameOver.triggerAttackRelease("C2", "1n");
+            }
+            finalScoreEl.textContent = score;
+            finalHeartCountEl.textContent = heartCount;
+            gameOverModal.classList.remove('hidden');
+        }
+
+        canvas.addEventListener('click', createBranch);
+        canvas.addEventListener('touchstart', createBranch, { passive: true });
+        restartButton.addEventListener('click', () => {
+             setCanvasDimensions();
+             init();
+        });
+        window.addEventListener('resize', () => {
+            setCanvasDimensions();
+            init();
+        });
+
+        setCanvasDimensions();
+        init();
+    </script>
+</body>
+</html>
