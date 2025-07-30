@@ -112,7 +112,12 @@
         <p class="text-xl">최고 높이: <span id="finalScore">0</span> m</p>
         <p class="text-xl">획득한 하트: <span id="finalHeartCount">0</span> 개</p>
         <p class="text-xl">획득한 코인: <span id="finalCoinCount">0</span> 개</p>
-        <button id="restartButton" class="restart-btn">다시 시작</button>
+        <div class="mt-4">
+            <h3 class="text-lg font-bold mb-2">랭킹</h3>
+            <ol id="rankingList" class="text-left text-base"></ol>
+            <p id="playerRank" class="mt-2 font-bold"></p>
+        </div>
+        <button id="restartButton" class="restart-btn mt-4">다시 시작</button>
     </div>
 </div>
 <script>
@@ -129,6 +134,8 @@ const gameOverModal = document.getElementById('gameOverModal');
 const finalScoreEl = document.getElementById('finalScore');
 const finalHeartCountEl = document.getElementById('finalHeartCount');
 const finalCoinCountEl = document.getElementById('finalCoinCount');
+const rankingListEl = document.getElementById('rankingList');
+const playerRankEl = document.getElementById('playerRank');
 const restartButton = document.getElementById('restartButton');
 const bombButton = document.getElementById('bombButton');
 const flashEl = document.getElementById('flash');
@@ -539,12 +546,29 @@ function gameLoop() {
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
+function updateRanking() {
+    const entry = { score: score, time: Date.now() };
+    const records = JSON.parse(localStorage.getItem('records') || '[]');
+    records.push(entry);
+    records.sort((a, b) => b.score - a.score);
+    const playerRank = records.findIndex(r => r.time === entry.time) + 1;
+    localStorage.setItem('records', JSON.stringify(records));
+    rankingListEl.innerHTML = '';
+    records.slice(0, 10).forEach((r, i) => {
+        const li = document.createElement('li');
+        li.textContent = `${i + 1}. ${r.score} m`;
+        rankingListEl.appendChild(li);
+    });
+    playerRankEl.textContent = `현재 순위: ${playerRank}위`;
+}
+
 function gameOver() {
     isGameOver = true;
     cancelAnimationFrame(animationFrameId);
     finalScoreEl.textContent = score;
     finalHeartCountEl.textContent = heartCount;
     finalCoinCountEl.textContent = coinCount;
+    updateRanking();
     gameOverModal.classList.remove('hidden');
 }
 
