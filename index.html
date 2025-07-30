@@ -84,7 +84,7 @@
         </div>
         <canvas id="gameCanvas"></canvas>
         <div id="bombContainer" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-2">
-            <img id="bombButton" src="https://imgur.com/zmV2iL4" class="w-12 h-12 cursor-pointer" alt="bomb"/>
+            <img id="bombButton" src="https://i.imgur.com/zmV2iL4.png" class="w-12 h-12 cursor-pointer" alt="bomb"/>
             <span class="text-white text-xl">x<span id="bombCountDisplay">3</span></span>
         </div>
         <div id="flash" class="hidden fixed top-0 left-0 w-full h-full bg-white opacity-70"></div>
@@ -168,7 +168,7 @@ bugImage.onload = () => { isBugImageLoaded = true; };
 
 const bombImage = new Image();
 let isBombImageLoaded = false;
-bombImage.src = 'https://imgur.com/zmV2iL4';
+bombImage.src = 'https://i.imgur.com/zmV2iL4.png';
 bombImage.onload = () => { isBombImageLoaded = true; };
 
 const jack = { width:40, height:40, x:0, y:0, speed:gameSpeed, stalkIndex:1, isMovingHorizontally:false, targetX:0, color:'#2ecc71' };
