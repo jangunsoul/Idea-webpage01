@@ -83,6 +83,7 @@
             <p id="cooldownText" class="text-sm mt-1">가지 만들기 가능!</p>
         </div>
         <canvas id="gameCanvas"></canvas>
+        <div id="guideText" class="absolute left-1/2 -translate-x-1/2 text-white text-lg bg-black bg-opacity-50 px-3 py-1 rounded pointer-events-none hidden" style="top:30%;">이동할 수 있게 가지를 이어 주세요.</div>
         <div id="bombContainer" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-2">
             <img id="bombButton" src="https://i.imgur.com/zmV2iL4.png" class="w-12 h-12 cursor-pointer" alt="bomb"/>
             <span class="text-white text-xl">x<span id="bombCountDisplay">3</span></span>
@@ -131,6 +132,8 @@ const finalCoinCountEl = document.getElementById('finalCoinCount');
 const restartButton = document.getElementById('restartButton');
 const bombButton = document.getElementById('bombButton');
 const flashEl = document.getElementById('flash');
+const guideTextEl = document.getElementById('guideText');
+let guideTimeout;
 let canvasWidth, canvasHeight;
 let score = 0, totalDistance = 0, heartCount = 0, coinCount = 0, bombCount = 3;
 let gameSpeed = 2, isGameOver = false, animationFrameId;
@@ -221,6 +224,7 @@ function init() {
     for (let i = 0; i < 5; i++) spawnCloud(true);
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     gameLoop();
+    startGuideTimer();
 }
 
 function spawnCloud(isInitial = false) {
@@ -265,7 +269,20 @@ function manageCoins() {
     }
 }
 
+function startGuideTimer() {
+    clearTimeout(guideTimeout);
+    guideTimeout = setTimeout(() => {
+        guideTextEl.classList.remove('hidden');
+    }, 2000);
+}
+
+function handleUserInput() {
+    guideTextEl.classList.add('hidden');
+    startGuideTimer();
+}
+
 function createBranch(e) {
+    handleUserInput();
     const now = Date.now();
     const currentCooldown = isCooldownBoosted ? boostedBranchCooldown : branchCooldown;
     if (now - lastBranchTime < currentCooldown) return;
@@ -533,6 +550,8 @@ function gameOver() {
 
 canvas.addEventListener('click', createBranch);
 canvas.addEventListener('touchstart', createBranch, { passive: true });
+window.addEventListener('pointerdown', handleUserInput);
+window.addEventListener('pointermove', handleUserInput);
 restartButton.addEventListener('click', () => { setCanvasDimensions(); init(); });
 window.addEventListener('resize', () => { setCanvasDimensions(); init(); });
 bombButton.addEventListener('click', useBomb);
