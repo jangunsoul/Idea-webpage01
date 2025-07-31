@@ -67,8 +67,8 @@
     </style>
 </head>
 <body class="bg-gray-800 flex items-center justify-center h-screen relative">
-<div class="w-full h-full flex flex-col lg:flex-row items-center justify-center p-4 gap-8">
-    <div class="w-full max-w-md mx-auto relative">
+<div class="w-full h-full flex flex-col lg:flex-row items-center justify-center p-0 gap-0">
+    <div class="w-full relative">
         <div id="infoPanel" class="text-white text-center p-4 rounded-t-lg bg-gray-900">
             <h1 class="text-2xl font-bold">제크와 콩의 요정</h1>
             <div class="flex justify-around mt-2">
@@ -141,6 +141,9 @@ const bombButton = document.getElementById('bombButton');
 const flashEl = document.getElementById('flash');
 const guideTextEl = document.getElementById('guideText');
 let guideTimeout;
+const bgm = new Audio('https://raw.githubusercontent.com/jangunsoul/Idea-webpage01/main/182823__zagi2__chiptune-loop.wav');
+bgm.loop = true;
+window.addEventListener('pointerdown', () => bgm.play(), { once: true });
 let canvasWidth, canvasHeight;
 let score = 0, totalDistance = 0, heartCount = 0, coinCount = 0, bombCount = 3;
 let gameSpeed = 2, isGameOver = false, animationFrameId;
@@ -182,12 +185,17 @@ bombImage.src = 'https://i.imgur.com/zmV2iL4.png';
 bombImage.onload = () => { isBombImageLoaded = true; };
 
 const jack = { width:40, height:40, x:0, y:0, speed:gameSpeed, stalkIndex:1, isMovingHorizontally:false, targetX:0, color:'#2ecc71' };
-let bugs = [], branches = [], clouds = [], items = [], coins = [];
+let bugs = [], branches = [], clouds = [], items = [], coins = [], bullets = [];
+const bugMaxHp = 10;
+const bulletSpeed = 8;
+const bulletDamage = 4;
+const shootInterval = 1000;
+let lastShotTime = 0;
 
 function setCanvasDimensions() {
-    const container = canvas.parentElement;
-    canvasWidth = container.clientWidth;
-    canvasHeight = Math.min(window.innerHeight * 0.75, canvasWidth * 1.5);
+    canvasWidth = window.innerWidth;
+    const infoHeight = document.getElementById('infoPanel').offsetHeight;
+    canvasHeight = window.innerHeight - infoHeight;
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
 }
@@ -205,11 +213,13 @@ function init() {
     clouds = [];
     items = [];
     coins = [];
+    bullets = [];
     lastBranchTime = 0;
     lastBugSpawnTime = 0;
     bugSpawnInterval = 2000;
     isCooldownBoosted = false;
     cooldownBoostEndTime = 0;
+    lastShotTime = 0;
 
     beanstalkPositions.length = 0;
     for (let i = 0; i < beanstalkCount; i++) {
@@ -249,7 +259,7 @@ function spawnBug() {
         lastBugSpawnTime = now;
         const stalkIndex = Math.floor(Math.random() * beanstalkCount);
         const bugSize = 60;
-        bugs.push({ x: beanstalkPositions[stalkIndex] - bugSize/2, y: -bugSize, width: bugSize, height: bugSize, speed: gameSpeed * (0.8 + Math.random() * 0.7), color: '#e74c3c' });
+        bugs.push({ x: beanstalkPositions[stalkIndex] - bugSize/2, y: -bugSize, width: bugSize, height: bugSize, speed: gameSpeed * (0.8 + Math.random() * 0.7), color: '#e74c3c', hp: bugMaxHp });
         bugSpawnInterval = Math.max(500, 2000 - score * 5);
     }
 }
@@ -274,6 +284,17 @@ function manageCoins() {
         const coinSize = 30;
         coins.push({ x: beanstalkPositions[stalkIndex] - coinSize/2, y: -coinSize, width: coinSize, height: coinSize, speed: gameSpeed * 0.7 });
     }
+}
+
+function shootBullet() {
+    bullets.push({
+        x: jack.x + jack.width / 2 - 2,
+        y: jack.y,
+        width: 4,
+        height: 8,
+        speed: bulletSpeed
+    });
+    lastShotTime = Date.now();
 }
 
 function startGuideTimer() {
@@ -345,6 +366,10 @@ function update() {
         jack.y -= jack.speed;
     }
 
+    if (!jack.isMovingHorizontally && Date.now() - lastShotTime > shootInterval) {
+        shootBullet();
+    }
+
     let scrollAmount = 0;
     const scrollThreshold = canvasHeight * 2 / 3;
     if (jack.y < scrollThreshold) {
@@ -355,6 +380,7 @@ function update() {
         clouds.forEach(c => c.y += scrollAmount * c.speed * 0.5);
         items.forEach(item => item.y += scrollAmount);
         coins.forEach(coin => coin.y += scrollAmount);
+        bullets.forEach(b => b.y += scrollAmount);
         totalDistance += scrollAmount;
     }
 
@@ -370,10 +396,30 @@ function update() {
     clouds = clouds.filter(c => c.y < canvasHeight + c.radius);
     if (Math.random() < 0.01) spawnCloud();
 
-    bugs.forEach(bug => {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.y -= b.speed;
+        if (b.y + b.height < 0 || b.y > canvasHeight) {
+            bullets.splice(i, 1);
+        }
+    }
+
+    for (let i = bugs.length - 1; i >= 0; i--) {
+        const bug = bugs[i];
         bug.y += bug.speed;
+        for (let j = bullets.length - 1; j >= 0; j--) {
+            const bullet = bullets[j];
+            if (bullet.x < bug.x + bug.width && bullet.x + bullet.width > bug.x && bullet.y < bug.y + bug.height && bullet.y + bullet.height > bug.y) {
+                bug.hp -= bulletDamage;
+                bullets.splice(j, 1);
+                if (bug.hp <= 0) {
+                    bugs.splice(i, 1);
+                }
+                break;
+            }
+        }
         if (jack.x < bug.x + bug.width && jack.x + jack.width > bug.x && jack.y < bug.y + bug.height && jack.y + jack.height > bug.y) gameOver();
-    });
+    }
 
     for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i];
@@ -512,6 +558,11 @@ function draw() {
         }
     });
 
+    bullets.forEach(b => {
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(b.x, b.y, b.width, b.height);
+    });
+
     bugs.forEach(b => {
         if (isBugImageLoaded) {
             ctx.drawImage(bugImage, b.x, b.y, b.width, b.height);
@@ -519,6 +570,11 @@ function draw() {
             ctx.fillStyle = b.color;
             ctx.fillRect(b.x, b.y, b.width, b.height);
         }
+        const barHeight = 5;
+        ctx.fillStyle = 'red';
+        ctx.fillRect(b.x, b.y - barHeight - 2, b.width, barHeight);
+        ctx.fillStyle = 'green';
+        ctx.fillRect(b.x, b.y - barHeight - 2, b.width * (b.hp / bugMaxHp), barHeight);
     });
 
     if (isJackImageLoaded) {
