@@ -69,7 +69,7 @@
 </head>
 <body class="bg-gray-800 flex items-start justify-center h-screen relative">
 <div class="w-full h-full flex flex-col lg:flex-row items-center justify-start p-0 gap-0">
-    <div class="w-full relative">
+    <div id="gameWrapper" class="relative mx-auto">
         <div id="infoPanel" class="text-white text-center p-4 rounded-t-lg bg-gray-900">
             <h1 class="text-2xl font-bold">제크와 콩의 요정</h1>
             <div class="flex justify-around mt-2">
@@ -82,8 +82,12 @@
         </div>
         <canvas id="gameCanvas"></canvas>
         <div id="guideText" class="absolute left-1/2 -translate-x-1/2 text-white text-lg bg-black bg-opacity-50 px-3 py-1 rounded pointer-events-none hidden" style="top:30%;">이동할 수 있게 가지를 이어 주세요.</div>
-        <div id="bombContainer" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-2">
-            <img id="bombButton" src="https://i.imgur.com/zmV2iL4.png" class="w-12 h-12 cursor-pointer" alt="bomb"/>
+        <img id="touchGuideLeft" src="https://i.imgur.com/hTCAWgp.png" alt="touch guide" class="guide-image absolute hidden w-16 h-16 pointer-events-none" style="top:50%; left:37.5%; transform:translate(-50%,-50%);"/>
+        <img id="touchGuideRight" src="https://i.imgur.com/hTCAWgp.png" alt="touch guide" class="guide-image absolute hidden w-16 h-16 pointer-events-none" style="top:50%; left:62.5%; transform:translate(-50%,-50%);"/>
+        <div id="bombContainer" class="absolute bottom-4 left-4 flex items-center space-x-2">
+            <div class="w-14 h-14 bg-white rounded flex items-center justify-center">
+                <img id="bombButton" src="https://i.imgur.com/zmV2iL4.png" class="w-10 h-10 cursor-pointer" alt="bomb"/>
+            </div>
             <span class="text-white text-xl">x<span id="bombCountDisplay">3</span></span>
         </div>
         <div id="levelInfo" class="absolute bottom-4 right-4 text-white text-xl bg-gray-900 bg-opacity-50 px-3 py-1 rounded">
@@ -137,6 +141,9 @@ const restartButton = document.getElementById('restartButton');
 const bombButton = document.getElementById('bombButton');
 const flashEl = document.getElementById('flash');
 const guideTextEl = document.getElementById('guideText');
+const guideImageLeft = document.getElementById('touchGuideLeft');
+const guideImageRight = document.getElementById('touchGuideRight');
+const guideImageEls = [guideImageLeft, guideImageRight];
 const levelEl = document.getElementById('level');
 const currentHeartsEl = document.getElementById('currentHearts');
 const heartsNeededEl = document.getElementById('heartsNeeded');
@@ -148,6 +155,7 @@ const bgm = new Audio('https://raw.githubusercontent.com/jangunsoul/Idea-webpage
 bgm.loop = true;
 window.addEventListener('pointerdown', () => bgm.play(), { once: true });
 let canvasWidth, canvasHeight;
+const aspectRatio = 9 / 16;
 let score = 0, totalDistance = 0, heartCount = 0, coinCount = 0, bombCount = 3;
 let gameSpeed = 2, isGameOver = false, animationFrameId;
 const beanstalkCount = 3;
@@ -254,11 +262,38 @@ function startNextWave() {
 }
 
 function setCanvasDimensions() {
-    canvasWidth = window.innerWidth;
     const infoHeight = document.getElementById('infoPanel').offsetHeight;
-    canvasHeight = window.innerHeight - infoHeight;
+    let availableWidth = window.innerWidth;
+    let availableHeight = window.innerHeight - infoHeight;
+
+    let heightByWidth = availableWidth / aspectRatio;
+    if (heightByWidth > availableHeight) {
+        canvasHeight = availableHeight;
+        canvasWidth = availableHeight * aspectRatio;
+    } else {
+        canvasWidth = availableWidth;
+        canvasHeight = heightByWidth;
+    }
+
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
+    canvas.style.width = canvasWidth + 'px';
+    canvas.style.height = canvasHeight + 'px';
+
+    const wrapper = document.getElementById('gameWrapper');
+    wrapper.style.width = canvasWidth + 'px';
+    wrapper.style.height = canvasHeight + infoHeight + 'px';
+}
+
+function positionGuideImages() {
+    const infoHeight = document.getElementById('infoPanel').offsetHeight;
+    const top = infoHeight + canvasHeight * 0.4;
+    guideImageLeft.style.top = top + 'px';
+    guideImageRight.style.top = top + 'px';
+    if (beanstalkPositions.length >= 3) {
+        guideImageLeft.style.left = (beanstalkPositions[0] + beanstalkPositions[1]) / 2 + 'px';
+        guideImageRight.style.left = (beanstalkPositions[1] + beanstalkPositions[2]) / 2 + 'px';
+    }
 }
 
 function init() {
@@ -300,6 +335,7 @@ function init() {
     jack.x = beanstalkPositions[jack.stalkIndex] - jack.width / 2;
     jack.y = canvasHeight - jack.height - 20;
     jack.isMovingHorizontally = false;
+    positionGuideImages();
 
     scoreEl.textContent = 0;
     heartCountEl.textContent = 0;
@@ -309,6 +345,8 @@ function init() {
     levelEl.textContent = level;
     heartsNeededEl.textContent = heartsNeeded;
     currentHeartsEl.textContent = heartCount;
+    guideTextEl.classList.add('hidden');
+    guideImageEls.forEach(el => el.classList.add('hidden'));
     gameOverModal.classList.add('hidden');
 
     announceWave();
@@ -426,11 +464,13 @@ function startGuideTimer() {
     clearTimeout(guideTimeout);
     guideTimeout = setTimeout(() => {
         guideTextEl.classList.remove('hidden');
+        guideImageEls.forEach(el => el.classList.remove('hidden'));
     }, 2000);
 }
 
 function handleUserInput() {
     guideTextEl.classList.add('hidden');
+    guideImageEls.forEach(el => el.classList.add('hidden'));
     startGuideTimer();
 }
 
