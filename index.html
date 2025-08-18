@@ -73,15 +73,12 @@
         <div id="infoPanel" class="text-white text-center p-4 rounded-t-lg bg-gray-900">
             <h1 class="text-2xl font-bold">제크와 콩의 요정</h1>
             <div class="flex justify-around mt-2">
+                <p>Wave <span id="wave">1</span></p>
                 <p>높이: <span id="score">0</span> m</p>
                 <p>❤️ <span id="heartCount">0</span></p>
                 <p>🪙 <span id="coinCount">0</span></p>
                 <p>💣 <span id="bombCount">3</span></p>
             </div>
-            <div class="w-full bg-gray-700 rounded-full h-4 mt-2">
-                <div id="cooldownBar" class="bg-blue-500 h-4 rounded-full transition-all duration-200" style="width: 100%;"></div>
-            </div>
-            <p id="cooldownText" class="text-sm mt-1">가지 만들기 가능!</p>
         </div>
         <canvas id="gameCanvas"></canvas>
         <div id="guideText" class="absolute left-1/2 -translate-x-1/2 text-white text-lg bg-black bg-opacity-50 px-3 py-1 rounded pointer-events-none hidden" style="top:30%;">이동할 수 있게 가지를 이어 주세요.</div>
@@ -89,19 +86,20 @@
             <img id="bombButton" src="https://i.imgur.com/zmV2iL4.png" class="w-12 h-12 cursor-pointer" alt="bomb"/>
             <span class="text-white text-xl">x<span id="bombCountDisplay">3</span></span>
         </div>
+        <div id="levelInfo" class="absolute bottom-4 right-4 text-white text-xl bg-gray-900 bg-opacity-50 px-3 py-1 rounded">
+            Lv.<span id="level">1</span> ❤️ <span id="currentHearts">0</span>/<span id="heartsNeeded">1</span>
+        </div>
+        <div id="levelUpText" class="hidden absolute inset-0 flex items-center justify-center text-4xl text-yellow-300 font-bold pointer-events-none">레벨 업!</div>
+        <div id="waveText" class="hidden absolute inset-0 flex items-center justify-center text-4xl text-white font-bold pointer-events-none"></div>
         <div id="flash" class="hidden fixed top-0 left-0 w-full h-full bg-white opacity-70"></div>
     </div>
     <div class="w-full lg:w-1/3 max-w-md bg-gray-900 text-white p-6 rounded-lg instructions hidden lg:block">
         <h3>🎮 게임 방법</h3>
         <p><strong>1. 가지 만들기:</strong> 마우스를 클릭해서 콩나무 줄기 사이에 <strong>가지</strong>를 만들어 제크가 다른 줄기로 이동할 수 있게 도와주세요.</p>
-        <ul>
-            <li>가지를 한 번 만들면 잠시 동안 <strong>쿨타임</strong>이 필요해요.</li>
-        </ul>
         <p><strong>2. 벌레 피하기:</strong> 하늘에서 떨어지는 <strong>벌레</strong>에 닿으면 게임이 종료되니 조심하세요!</p>
         <p><strong>3. 아이템 획득:</strong></p>
         <ul>
             <li><strong>코인(🪙):</strong> 최대한 많이 모아보세요!</li>
-            <li><strong>시계(⏰):</strong> 7초 동안 가지를 아주 빠르게 만들 수 있어요.</li>
             <li><strong>하트(❤️):</strong> 획득한 하트 개수가 기록돼요.</li>
             <li><strong>폭탄(💣):</strong> 화면 하단 폭탄을 충전해요.</li>
         </ul>
@@ -129,8 +127,6 @@ const heartCountEl = document.getElementById('heartCount');
 const coinCountEl = document.getElementById('coinCount');
 const bombCountEl = document.getElementById('bombCount');
 const bombCountDisplay = document.getElementById('bombCountDisplay');
-const cooldownBar = document.getElementById('cooldownBar');
-const cooldownText = document.getElementById('cooldownText');
 const gameOverModal = document.getElementById('gameOverModal');
 const finalScoreEl = document.getElementById('finalScore');
 const finalHeartCountEl = document.getElementById('finalHeartCount');
@@ -141,6 +137,12 @@ const restartButton = document.getElementById('restartButton');
 const bombButton = document.getElementById('bombButton');
 const flashEl = document.getElementById('flash');
 const guideTextEl = document.getElementById('guideText');
+const levelEl = document.getElementById('level');
+const currentHeartsEl = document.getElementById('currentHearts');
+const heartsNeededEl = document.getElementById('heartsNeeded');
+const levelUpTextEl = document.getElementById('levelUpText');
+const waveEl = document.getElementById('wave');
+const waveTextEl = document.getElementById('waveText');
 let guideTimeout;
 const bgm = new Audio('https://raw.githubusercontent.com/jangunsoul/Idea-webpage01/main/182823__zagi2__chiptune-loop.wav');
 bgm.loop = true;
@@ -150,15 +152,14 @@ let score = 0, totalDistance = 0, heartCount = 0, coinCount = 0, bombCount = 3;
 let gameSpeed = 2, isGameOver = false, animationFrameId;
 const beanstalkCount = 3;
 const beanstalkPositions = [];
-const branchCooldown = 1800;
 const maxBugs = 8;
 let bugSpawnInterval = 2000;
 let lastBugSpawnTime = 0;
-let isCooldownBoosted = false;
-let cooldownBoostEndTime = 0;
-const boostedBranchCooldown = 400;
-const cooldownBoostDuration = 7000;
-let lastBranchTime = 0;
+let stoneSpawnInterval = 10000;
+let lastStoneSpawnTime = 0;
+let wave = 1;
+let waveDuration = 60000;
+let waveStartTime = Date.now();
 
 const jackImage = new Image();
 let isJackImageLoaded = false;
@@ -185,13 +186,72 @@ let isBombImageLoaded = false;
 bombImage.src = 'https://i.imgur.com/zmV2iL4.png';
 bombImage.onload = () => { isBombImageLoaded = true; };
 
+const stoneImage = new Image();
+let isStoneImageLoaded = false;
+stoneImage.src = 'https://i.imgur.com/Asv1GN4.png';
+stoneImage.onload = () => { isStoneImageLoaded = true; };
+
 const jack = { width:40, height:40, x:0, y:0, speed:gameSpeed, stalkIndex:1, isMovingHorizontally:false, targetX:0, color:'#2ecc71' };
-let bugs = [], branches = [], clouds = [], items = [], coins = [], bullets = [];
-const bugMaxHp = 10;
+let bugs = [], stones = [], branches = [], clouds = [], items = [], coins = [], bullets = [];
+const bugBaseHp = 10;
+let bugLevel = 1;
+let bugMaxHp = bugBaseHp;
 const bulletSpeed = 8;
-const bulletDamage = 4;
+const baseBulletDamage = 4;
+const baseBulletWidth = 4;
+const baseBulletHeight = 8;
+let bulletDamage = baseBulletDamage;
+let bulletWidth = baseBulletWidth;
+let bulletHeight = baseBulletHeight;
+let bulletColor = 'yellow';
 const shootInterval = 1000;
 let lastShotTime = 0;
+let level = 1;
+let heartsNeeded = 1;
+
+function updateBulletStats() {
+    bulletDamage = Math.round(baseBulletDamage * Math.pow(1.3, level - 1));
+    const scale = 1 + 0.05 * (level - 1);
+    bulletWidth = baseBulletWidth * scale;
+    bulletHeight = baseBulletHeight * scale;
+    bulletColor = `hsl(${(level * 25) % 360}, 100%, 50%)`;
+}
+
+function showLevelUpEffect() {
+    levelUpTextEl.classList.remove('hidden');
+    setTimeout(() => levelUpTextEl.classList.add('hidden'), 1000);
+}
+
+function checkLevelUp() {
+    while (level < 99 && heartCount >= heartsNeeded) {
+        level++;
+        heartsNeeded *= 2;
+        updateBulletStats();
+        levelEl.textContent = level;
+        heartsNeededEl.textContent = heartsNeeded;
+        showLevelUpEffect();
+    }
+}
+
+function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function announceWave() {
+    waveTextEl.textContent = `[Wave ${wave}]`;
+    waveTextEl.classList.remove('hidden');
+    setTimeout(() => waveTextEl.classList.add('hidden'), 2000);
+}
+
+function startNextWave() {
+    wave++;
+    waveEl.textContent = wave;
+    bugLevel = wave;
+    bugMaxHp = Math.round(bugBaseHp * Math.pow(1.3, bugLevel - 1));
+    waveDuration = 60000 + (wave - 1) * 10000;
+    waveStartTime = Date.now();
+    announceWave();
+}
 
 function setCanvasDimensions() {
     canvasWidth = window.innerWidth;
@@ -208,18 +268,27 @@ function init() {
     heartCount = 0;
     coinCount = 0;
     bombCount = 3;
+    level = 1;
+    heartsNeeded = 1;
+    updateBulletStats();
+    wave = 1;
+    waveDuration = 60000;
+    waveStartTime = Date.now();
+    waveEl.textContent = wave;
+    bugLevel = 1;
+    bugMaxHp = bugBaseHp;
     gameSpeed = 2;
     bugs = [];
+    stones = [];
     branches = [];
     clouds = [];
     items = [];
     coins = [];
     bullets = [];
-    lastBranchTime = 0;
     lastBugSpawnTime = 0;
     bugSpawnInterval = 2000;
-    isCooldownBoosted = false;
-    cooldownBoostEndTime = 0;
+    lastStoneSpawnTime = 0;
+    stoneSpawnInterval = 10000;
     lastShotTime = 0;
 
     beanstalkPositions.length = 0;
@@ -237,7 +306,12 @@ function init() {
     coinCountEl.textContent = 0;
     bombCountEl.textContent = bombCount;
     bombCountDisplay.textContent = bombCount;
+    levelEl.textContent = level;
+    heartsNeededEl.textContent = heartsNeeded;
+    currentHeartsEl.textContent = heartCount;
     gameOverModal.classList.add('hidden');
+
+    announceWave();
 
     for (let i = 0; i < 5; i++) spawnCloud(true);
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -260,21 +334,69 @@ function spawnBug() {
         lastBugSpawnTime = now;
         const stalkIndex = Math.floor(Math.random() * beanstalkCount);
         const bugSize = 60;
-        bugs.push({ x: beanstalkPositions[stalkIndex] - bugSize/2, y: -bugSize, width: bugSize, height: bugSize, speed: gameSpeed * (0.8 + Math.random() * 0.7), color: '#e74c3c', hp: bugMaxHp });
+        bugs.push({
+            x: beanstalkPositions[stalkIndex] - bugSize/2,
+            y: -bugSize,
+            width: bugSize,
+            height: bugSize,
+            speed: gameSpeed * (0.8 + Math.random() * 0.7),
+            color: '#e74c3c',
+            hp: bugMaxHp,
+            maxHp: bugMaxHp,
+            level: bugLevel
+        });
         bugSpawnInterval = Math.max(500, 2000 - score * 5);
+    }
+}
+
+function spawnStone() {
+    const now = Date.now();
+    if (now - lastStoneSpawnTime > stoneSpawnInterval) {
+        lastStoneSpawnTime = now;
+        stoneSpawnInterval = Math.max(1000, stoneSpawnInterval - 100);
+        const stalkIndex = jack.stalkIndex;
+        const size = 60;
+        stones.push({
+            x: beanstalkPositions[stalkIndex] - size/2,
+            y: -size,
+            width: size,
+            height: size,
+            speed: gameSpeed * (0.8 + Math.random() * 0.7)
+        });
     }
 }
 
 function spawnStalkItem() {
     if (Math.random() < 0.005) {
         const stalkIndex = Math.floor(Math.random() * beanstalkCount);
-        const r = Math.random();
-        let itemType;
-        if (r < 0.1) itemType = 'bomb';
-        else if (r < 0.55) itemType = 'cooldown';
-        else itemType = 'heart';
         const itemSize = 40;
-        items.push({ x: beanstalkPositions[stalkIndex] - itemSize/2, y: -itemSize, width: itemSize, height: itemSize, type: itemType, speed: gameSpeed * 0.6 });
+        const r = Math.random();
+        if (r < 0.1) {
+            items.push({ x: beanstalkPositions[stalkIndex] - itemSize/2, y: -itemSize, width: itemSize, height: itemSize, type: 'bomb', speed: gameSpeed * 0.6 });
+        } else if (r < 0.55) {
+            let amount = 1;
+            let isBonus = false;
+            if (Math.random() < 0.1) { amount = randInt(2,6); isBonus = true; }
+            items.push({ x: beanstalkPositions[stalkIndex] - itemSize/2, y: -itemSize, width: itemSize, height: itemSize, type: 'heart', amount, speed: gameSpeed * 0.6, isBonus });
+        } else {
+            let amount = 1;
+            let isBonus = false;
+            if (Math.random() < 0.1) { amount = randInt(2,15); isBonus = true; }
+            coins.push({ x: beanstalkPositions[stalkIndex] - itemSize/2, y: -itemSize, width: itemSize, height: itemSize, speed: gameSpeed * 0.6, amount, isBonus });
+        }
+    }
+}
+
+function dropLoot(bug) {
+    if (Math.random() < 0.5) {
+        const size = 40;
+        const amount = randInt(1,3);
+        const isBonus = amount > 1;
+        items.push({ x: bug.x + bug.width/2 - size/2, y: bug.y, width: size, height: size, type: 'heart', amount, speed: gameSpeed * 0.6, isBonus });
+    } else {
+        const size = 30;
+        const amount = randInt(5,10);
+        coins.push({ x: bug.x + bug.width/2 - size/2, y: bug.y, width: size, height: size, speed: gameSpeed * 0.7, amount, isBonus: true });
     }
 }
 
@@ -283,17 +405,19 @@ function manageCoins() {
     if (coins.length < targetCoinCount && Math.random() < 0.1) {
         const stalkIndex = Math.floor(Math.random() * beanstalkCount);
         const coinSize = 30;
-        coins.push({ x: beanstalkPositions[stalkIndex] - coinSize/2, y: -coinSize, width: coinSize, height: coinSize, speed: gameSpeed * 0.7 });
+        coins.push({ x: beanstalkPositions[stalkIndex] - coinSize/2, y: -coinSize, width: coinSize, height: coinSize, speed: gameSpeed * 0.7, amount: 1, isBonus: false });
     }
 }
 
 function shootBullet() {
     bullets.push({
-        x: jack.x + jack.width / 2 - 2,
+        x: jack.x + jack.width / 2 - bulletWidth / 2,
         y: jack.y,
-        width: 4,
-        height: 8,
-        speed: bulletSpeed
+        width: bulletWidth,
+        height: bulletHeight,
+        speed: bulletSpeed,
+        color: bulletColor,
+        damage: bulletDamage
     });
     lastShotTime = Date.now();
 }
@@ -312,9 +436,6 @@ function handleUserInput() {
 
 function createBranch(e) {
     handleUserInput();
-    const now = Date.now();
-    const currentCooldown = isCooldownBoosted ? boostedBranchCooldown : branchCooldown;
-    if (now - lastBranchTime < currentCooldown) return;
 
     const rect = canvas.getBoundingClientRect();
     const clientX = e.clientX || e.touches[0].clientX;
@@ -332,12 +453,28 @@ function createBranch(e) {
     }
 
     if (fromStalk !== -1) {
-        branches.push({ x1: beanstalkPositions[fromStalk], y1: y, x2: beanstalkPositions[toStalk], y2: y, color: '#8B4513', used: false });
-        lastBranchTime = now;
-        if (Math.random() < 0.25) {
-            const itemType = Math.random() < 0.5 ? 'cooldown' : 'heart';
-            const itemSize = 40;
-            items.push({ x: (beanstalkPositions[fromStalk] + beanstalkPositions[toStalk]) / 2 - itemSize/2, y: y - itemSize/2, width: itemSize, height: itemSize, type: itemType, speed: 0 });
+        const fromX = beanstalkPositions[fromStalk];
+        const toX = beanstalkPositions[toStalk];
+        const tooClose = branches.some(b => {
+            const sameGap = (b.x1 === fromX && b.x2 === toX) || (b.x1 === toX && b.x2 === fromX);
+            return sameGap && Math.abs(b.y1 - y) < jack.height;
+        });
+        if (!tooClose) {
+            branches.push({ x1: fromX, y1: y, x2: toX, y2: y, color: '#8B4513', used: false });
+            if (Math.random() < 0.25) {
+                const itemSize = 40;
+                if (Math.random() < 0.5) {
+                    let amount = 1;
+                    let isBonus = false;
+                    if (Math.random() < 0.1) { amount = randInt(2,6); isBonus = true; }
+                    items.push({ x: (fromX + toX) / 2 - itemSize/2, y: y - itemSize/2, width: itemSize, height: itemSize, type: 'heart', amount, speed: 0, isBonus });
+                } else {
+                    let amount = 1;
+                    let isBonus = false;
+                    if (Math.random() < 0.1) { amount = randInt(2,15); isBonus = true; }
+                    coins.push({ x: (fromX + toX) / 2 - itemSize/2, y: y - itemSize/2, width: itemSize, height: itemSize, speed: 0, amount, isBonus });
+                }
+            }
         }
     }
 }
@@ -350,10 +487,16 @@ function useBomb() {
     flashEl.classList.remove('hidden');
     setTimeout(() => flashEl.classList.add('hidden'), 200);
     bugs = [];
+    stones = [];
 }
 
 function update() {
     if (isGameOver) return;
+
+    const now = Date.now();
+    if (now - waveStartTime > waveDuration) {
+        startNextWave();
+    }
 
     if (jack.isMovingHorizontally) {
         const dx = jack.targetX - jack.x;
@@ -367,7 +510,7 @@ function update() {
         jack.y -= jack.speed;
     }
 
-    if (!jack.isMovingHorizontally && Date.now() - lastShotTime > shootInterval) {
+    if (!jack.isMovingHorizontally && now - lastShotTime > shootInterval) {
         shootBullet();
     }
 
@@ -378,6 +521,7 @@ function update() {
         jack.y = scrollThreshold;
         branches.forEach(b => { b.y1 += scrollAmount; b.y2 += scrollAmount; });
         bugs.forEach(bug => bug.y += scrollAmount);
+        stones.forEach(stone => stone.y += scrollAmount);
         clouds.forEach(c => c.y += scrollAmount * c.speed * 0.5);
         items.forEach(item => item.y += scrollAmount);
         coins.forEach(coin => coin.y += scrollAmount);
@@ -391,6 +535,7 @@ function update() {
     scoreEl.textContent = score;
 
     bugs = bugs.filter(bug => bug.y < canvasHeight + 50);
+    stones = stones.filter(stone => stone.y < canvasHeight + 50);
     items = items.filter(item => item.y < canvasHeight + 50);
     coins = coins.filter(coin => coin.y < canvasHeight + 50);
     branches = branches.filter(b => b.y1 < canvasHeight + 20);
@@ -411,9 +556,10 @@ function update() {
         for (let j = bullets.length - 1; j >= 0; j--) {
             const bullet = bullets[j];
             if (bullet.x < bug.x + bug.width && bullet.x + bullet.width > bug.x && bullet.y < bug.y + bug.height && bullet.y + bullet.height > bug.y) {
-                bug.hp -= bulletDamage;
+                bug.hp -= bullet.damage;
                 bullets.splice(j, 1);
                 if (bug.hp <= 0) {
+                    dropLoot(bug);
                     bugs.splice(i, 1);
                 }
                 break;
@@ -422,16 +568,28 @@ function update() {
         if (jack.x < bug.x + bug.width && jack.x + jack.width > bug.x && jack.y < bug.y + bug.height && jack.y + jack.height > bug.y) gameOver();
     }
 
+    for (let i = stones.length - 1; i >= 0; i--) {
+        const stone = stones[i];
+        stone.y += stone.speed;
+        for (let j = bullets.length - 1; j >= 0; j--) {
+            const bullet = bullets[j];
+            if (bullet.x < stone.x + stone.width && bullet.x + bullet.width > stone.x && bullet.y < stone.y + stone.height && bullet.y + bullet.height > stone.y) {
+                bullets.splice(j, 1);
+                break;
+            }
+        }
+        if (jack.x < stone.x + stone.width && jack.x + jack.width > stone.x && jack.y < stone.y + stone.height && jack.y + jack.height > stone.y) gameOver();
+    }
+
     for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i];
         if (item.speed) item.y += item.speed;
         if (jack.x < item.x + item.width && jack.x + jack.width > item.x && jack.y < item.y + item.height && jack.y + jack.height > item.y) {
-            if (item.type === 'cooldown') {
-                isCooldownBoosted = true;
-                cooldownBoostEndTime = Date.now() + cooldownBoostDuration;
-            } else if (item.type === 'heart') {
-                heartCount++;
+            if (item.type === 'heart') {
+                heartCount += item.amount || 1;
                 heartCountEl.textContent = heartCount;
+                currentHeartsEl.textContent = heartCount;
+                checkLevelUp();
             } else if (item.type === 'bomb') {
                 bombCount++;
                 bombCountEl.textContent = bombCount;
@@ -445,13 +603,11 @@ function update() {
         const coin = coins[i];
         if (coin.speed) coin.y += coin.speed;
         if (jack.x < coin.x + coin.width && jack.x + jack.width > coin.x && jack.y < coin.y + coin.height && jack.y + jack.height > coin.y) {
-            coinCount++;
+            coinCount += coin.amount || 1;
             coinCountEl.textContent = coinCount;
             coins.splice(i, 1);
         }
     }
-
-    if (isCooldownBoosted && Date.now() > cooldownBoostEndTime) isCooldownBoosted = false;
 
     if (!jack.isMovingHorizontally) {
         branches.forEach(branch => {
@@ -472,6 +628,7 @@ function update() {
     }
 
     spawnBug();
+    spawnStone();
     spawnStalkItem();
     manageCoins();
 }
@@ -504,13 +661,21 @@ function draw() {
     branches.forEach(b => { ctx.strokeStyle = b.color; ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke(); });
 
     items.forEach(item => {
+        const cx = item.x + item.width / 2;
+        const cy = item.y + item.height / 2;
+        const amountScale = item.amount && item.amount > 1 ? 1 + 0.1 * item.amount : 1;
+        const bonusScale = item.isBonus ? 1.05 + 0.05 * Math.sin(Date.now() / 200) : 1;
+        const scale = amountScale * bonusScale;
         ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+        ctx.translate(-item.width / 2, -item.height / 2);
         if (item.type === 'heart') {
             ctx.fillStyle = '#e91e63';
             ctx.beginPath();
             const d = Math.min(item.width, item.height);
-            const k = item.x;
-            const l = item.y;
+            const k = 0;
+            const l = 0;
             ctx.moveTo(k, l + d/4);
             ctx.quadraticCurveTo(k, l, k + d/4, l);
             ctx.quadraticCurveTo(k + d/2, l, k + d/2, l + d/4);
@@ -523,45 +688,62 @@ function draw() {
             ctx.fill();
         } else if (item.type === 'bomb') {
             if (isBombImageLoaded) {
-                ctx.drawImage(bombImage, item.x, item.y, item.width, item.height);
+                ctx.drawImage(bombImage, 0, 0, item.width, item.height);
             } else {
                 ctx.fillStyle = 'red';
                 ctx.beginPath();
-                ctx.arc(item.x + item.width/2, item.y + item.height/2, item.width/2, 0, Math.PI * 2);
+                ctx.arc(item.width/2, item.height/2, item.width/2, 0, Math.PI * 2);
                 ctx.fill();
             }
-        } else {
-            ctx.strokeStyle = '#3498db';
-            ctx.fillStyle = '#ecf0f1';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(item.x + item.width/2, item.y + item.height/2, item.width/2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(item.x + item.width/2, item.y + item.height/2);
-            ctx.lineTo(item.x + item.width/2, item.y + 5);
-            ctx.moveTo(item.x + item.width/2, item.y + item.height/2);
-            ctx.lineTo(item.x + item.width - 5, item.y + item.height/2);
-            ctx.stroke();
         }
         ctx.restore();
+        if (item.amount && item.amount > 1) {
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Jua';
+            ctx.textAlign = 'center';
+            ctx.fillText(`x${item.amount}`, cx, item.y - 5);
+        }
     });
 
     coins.forEach(coin => {
+        const cx = coin.x + coin.width / 2;
+        const cy = coin.y + coin.height / 2;
+        const amountScale = coin.amount > 1 ? 1 + 0.1 * coin.amount : 1;
+        const bonusScale = coin.isBonus ? 1.05 + 0.05 * Math.sin(Date.now() / 200) : 1;
+        const scale = amountScale * bonusScale;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+        ctx.translate(-coin.width / 2, -coin.height / 2);
         if (isCoinImageLoaded) {
-            ctx.drawImage(coinImage, coin.x, coin.y, coin.width, coin.height);
+            ctx.drawImage(coinImage, 0, 0, coin.width, coin.height);
         } else {
             ctx.fillStyle = 'gold';
             ctx.beginPath();
-            ctx.arc(coin.x + coin.width/2, coin.y + coin.height/2, coin.width/2, 0, Math.PI * 2);
+            ctx.arc(coin.width/2, coin.height/2, coin.width/2, 0, Math.PI * 2);
             ctx.fill();
+        }
+        ctx.restore();
+        if (coin.amount && coin.amount > 1) {
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Jua';
+            ctx.textAlign = 'center';
+            ctx.fillText(`x${coin.amount}`, cx, coin.y - 5);
         }
     });
 
     bullets.forEach(b => {
-        ctx.fillStyle = 'yellow';
+        ctx.fillStyle = b.color;
         ctx.fillRect(b.x, b.y, b.width, b.height);
+    });
+
+    stones.forEach(s => {
+        if (isStoneImageLoaded) {
+            ctx.drawImage(stoneImage, s.x, s.y, s.width, s.height);
+        } else {
+            ctx.fillStyle = '#555';
+            ctx.fillRect(s.x, s.y, s.width, s.height);
+        }
     });
 
     bugs.forEach(b => {
@@ -575,7 +757,11 @@ function draw() {
         ctx.fillStyle = 'red';
         ctx.fillRect(b.x, b.y - barHeight - 2, b.width, barHeight);
         ctx.fillStyle = 'green';
-        ctx.fillRect(b.x, b.y - barHeight - 2, b.width * (b.hp / bugMaxHp), barHeight);
+        ctx.fillRect(b.x, b.y - barHeight - 2, b.width * (b.hp / b.maxHp), barHeight);
+        ctx.fillStyle = 'white';
+        ctx.font = '12px Jua';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Lv.${b.level}`, b.x + b.width/2, b.y - barHeight - 4);
     });
 
     if (isJackImageLoaded) {
@@ -585,16 +771,6 @@ function draw() {
         ctx.fillRect(jack.x, jack.y, jack.width, jack.height);
     }
 
-    const currentCooldown = isCooldownBoosted ? boostedBranchCooldown : branchCooldown;
-    const cooldownProgress = Math.min((Date.now() - lastBranchTime) / currentCooldown, 1);
-    cooldownBar.style.width = `${cooldownProgress * 100}%`;
-    if (isCooldownBoosted) {
-        cooldownText.textContent = '쿨타임 부스트!';
-        cooldownBar.className = 'bg-green-500 h-4 rounded-full transition-all duration-200';
-    } else {
-        cooldownText.textContent = cooldownProgress >= 1 ? '가지 만들기 가능!' : '기다리는 중...';
-        cooldownBar.className = 'bg-blue-500 h-4 rounded-full transition-all duration-200';
-    }
 }
 
 function gameLoop() {
