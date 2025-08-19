@@ -166,7 +166,7 @@ let bugSpawnInterval = 2000;
 let lastBugSpawnTime = 0;
 let stoneSpawnInterval = 10000;
 let lastStoneSpawnTime = 0;
-const magnetSpawnInterval = 30000;
+const magnetSpawnInterval = 15000;
 let lastMagnetSpawnTime = 0;
 let isMagnetActive = false;
 let wave = 1;
@@ -654,6 +654,9 @@ function update() {
         }
     }
 
+    const jackCenterX = jack.x + jack.width / 2;
+    const jackCenterY = jack.y + jack.height / 2;
+
     for (let i = bugs.length - 1; i >= 0; i--) {
         const bug = bugs[i];
         bug.y += bug.speed;
@@ -669,7 +672,9 @@ function update() {
                 break;
             }
         }
-        if (jack.x < bug.x + bug.width && jack.x + jack.width > bug.x && jack.y < bug.y + bug.height && jack.y + jack.height > bug.y) gameOver();
+        const bugCenterX = bug.x + bug.width / 2;
+        const bugCenterY = bug.y + bug.height / 2;
+        if (Math.abs(jackCenterX - bugCenterX) < 3 && Math.abs(jackCenterY - bugCenterY) < 3) gameOver();
     }
 
     for (let i = stones.length - 1; i >= 0; i--) {
@@ -682,7 +687,9 @@ function update() {
                 break;
             }
         }
-        if (jack.x < stone.x + stone.width && jack.x + jack.width > stone.x && jack.y < stone.y + stone.height && jack.y + jack.height > stone.y) gameOver();
+        const stoneCenterX = stone.x + stone.width / 2;
+        const stoneCenterY = stone.y + stone.height / 2;
+        if (Math.abs(jackCenterX - stoneCenterX) < 3 && Math.abs(jackCenterY - stoneCenterY) < 3) gameOver();
     }
 
     for (let i = items.length - 1; i >= 0; i--) {
