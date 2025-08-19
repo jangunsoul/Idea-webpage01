@@ -106,6 +106,7 @@
             <li><strong>코인(🪙):</strong> 최대한 많이 모아보세요!</li>
             <li><strong>하트(❤️):</strong> 획득한 하트 개수가 기록돼요.</li>
             <li><strong>폭탄(💣):</strong> 화면 하단 폭탄을 충전해요.</li>
+            <li><strong>자석:</strong> 화면의 코인과 몬스터를 모두 끌어당겨 코인으로 만들어요.</li>
         </ul>
     </div>
 </div>
@@ -165,6 +166,9 @@ let bugSpawnInterval = 2000;
 let lastBugSpawnTime = 0;
 let stoneSpawnInterval = 10000;
 let lastStoneSpawnTime = 0;
+const magnetSpawnInterval = 30000;
+let lastMagnetSpawnTime = 0;
+let isMagnetActive = false;
 let wave = 1;
 let waveDuration = 60000;
 let waveStartTime = Date.now();
@@ -198,6 +202,11 @@ const stoneImage = new Image();
 let isStoneImageLoaded = false;
 stoneImage.src = 'https://i.imgur.com/Asv1GN4.png';
 stoneImage.onload = () => { isStoneImageLoaded = true; };
+
+const magnetImage = new Image();
+let isMagnetImageLoaded = false;
+magnetImage.src = 'https://i.imgur.com/fmB2LGb.png';
+magnetImage.onload = () => { isMagnetImageLoaded = true; };
 
 const jack = { width:40, height:40, x:0, y:0, speed:gameSpeed, stalkIndex:1, isMovingHorizontally:false, targetX:0, color:'#2ecc71' };
 let bugs = [], stones = [], branches = [], clouds = [], items = [], coins = [], bullets = [];
@@ -324,6 +333,8 @@ function init() {
     bugSpawnInterval = 2000;
     lastStoneSpawnTime = 0;
     stoneSpawnInterval = 10000;
+    lastMagnetSpawnTime = Date.now();
+    isMagnetActive = false;
     lastShotTime = 0;
 
     beanstalkPositions.length = 0;
@@ -447,6 +458,36 @@ function manageCoins() {
     }
 }
 
+function spawnMagnetItem() {
+    const now = Date.now();
+    const hasMagnet = items.some(it => it.type === 'magnet');
+    if (!hasMagnet && now - lastMagnetSpawnTime > magnetSpawnInterval) {
+        lastMagnetSpawnTime = now;
+        const itemSize = 40;
+        const indices = [];
+        for (let i = 0; i < beanstalkCount; i++) if (i !== jack.stalkIndex) indices.push(i);
+        const stalkIndex = indices[Math.floor(Math.random() * indices.length)];
+        items.push({ x: beanstalkPositions[stalkIndex] - itemSize/2, y: -itemSize, width: itemSize, height: itemSize, type: 'magnet', speed: gameSpeed * 0.6 });
+    }
+}
+
+function activateMagnet() {
+    isMagnetActive = true;
+    coins.forEach(c => c.speed = 0);
+    bugs.forEach(bug => {
+        const size = 30;
+        const amount = randInt(3,6);
+        coins.push({ x: bug.x + bug.width/2 - size/2, y: bug.y + bug.height/2 - size/2, width: size, height: size, speed: 0, amount, isBonus: true });
+    });
+    bugs = [];
+    stones.forEach(stone => {
+        const size = 30;
+        const amount = randInt(3,6);
+        coins.push({ x: stone.x + stone.width/2 - size/2, y: stone.y + stone.height/2 - size/2, width: size, height: size, speed: 0, amount, isBonus: true });
+    });
+    stones = [];
+}
+
 function shootBullet() {
     bullets.push({
         x: jack.x + jack.width / 2 - bulletWidth / 2,
@@ -532,6 +573,29 @@ function useBomb() {
 
 function update() {
     if (isGameOver) return;
+
+    if (isMagnetActive) {
+        let allCollected = true;
+        for (let i = coins.length - 1; i >= 0; i--) {
+            const coin = coins[i];
+            const tx = jack.x + jack.width / 2 - coin.width / 2;
+            const ty = jack.y + jack.height / 2 - coin.height / 2;
+            const dx = tx - coin.x;
+            const dy = ty - coin.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 5) {
+                coin.x += dx * 0.2;
+                coin.y += dy * 0.2;
+                allCollected = false;
+            } else {
+                coinCount += coin.amount || 1;
+                coinCountEl.textContent = coinCount;
+                coins.splice(i, 1);
+            }
+        }
+        if (allCollected) isMagnetActive = false;
+        return;
+    }
 
     const now = Date.now();
     if (now - waveStartTime > waveDuration) {
@@ -634,6 +698,9 @@ function update() {
                 bombCount++;
                 bombCountEl.textContent = bombCount;
                 bombCountDisplay.textContent = bombCount;
+            } else if (item.type === 'magnet') {
+                activateMagnet();
+                lastMagnetSpawnTime = Date.now();
             }
             items.splice(i, 1);
         }
@@ -671,6 +738,7 @@ function update() {
     spawnStone();
     spawnStalkItem();
     manageCoins();
+    spawnMagnetItem();
 }
 
 function draw() {
@@ -734,6 +802,13 @@ function draw() {
                 ctx.beginPath();
                 ctx.arc(item.width/2, item.height/2, item.width/2, 0, Math.PI * 2);
                 ctx.fill();
+            }
+        } else if (item.type === 'magnet') {
+            if (isMagnetImageLoaded) {
+                ctx.drawImage(magnetImage, 0, 0, item.width, item.height);
+            } else {
+                ctx.fillStyle = 'purple';
+                ctx.fillRect(0, 0, item.width, item.height);
             }
         }
         ctx.restore();
