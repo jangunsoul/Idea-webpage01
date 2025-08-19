@@ -205,7 +205,7 @@ stoneImage.onload = () => { isStoneImageLoaded = true; };
 
 const magnetImage = new Image();
 let isMagnetImageLoaded = false;
-magnetImage.src = 'https://i.imgur.com/fmB2LGb.png';
+magnetImage.src = 'https://i.imgur.com/Z9Pc9Yk.gif';
 magnetImage.onload = () => { isMagnetImageLoaded = true; };
 
 const jack = { width:40, height:40, x:0, y:0, speed:gameSpeed, stalkIndex:1, isMovingHorizontally:false, targetX:0, color:'#2ecc71' };
@@ -463,7 +463,7 @@ function spawnMagnetItem() {
     const hasMagnet = items.some(it => it.type === 'magnet');
     if (!hasMagnet && now - lastMagnetSpawnTime > magnetSpawnInterval) {
         lastMagnetSpawnTime = now;
-        const itemSize = 40;
+        const itemSize = 60;
         const indices = [];
         for (let i = 0; i < beanstalkCount; i++) if (i !== jack.stalkIndex) indices.push(i);
         const stalkIndex = indices[Math.floor(Math.random() * indices.length)];
