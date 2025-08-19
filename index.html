@@ -155,6 +155,13 @@ let guideTimeout;
 const bgm = new Audio('https://raw.githubusercontent.com/jangunsoul/Idea-webpage01/main/The%20Cheetahmen.mp3');
 bgm.loop = true;
 window.addEventListener('pointerdown', () => bgm.play(), { once: true });
+const coinSfx = new Audio('https://raw.githubusercontent.com/jangunsoul/Idea-webpage01/main/CoinGet.wav');
+window.addEventListener('pointerdown', () => {
+    coinSfx.play().then(() => {
+        coinSfx.pause();
+        coinSfx.currentTime = 0;
+    }).catch(() => {});
+}, { once: true });
 let canvasWidth, canvasHeight;
 const aspectRatio = 9 / 16;
 let score = 0, totalDistance = 0, heartCount = 0, coinCount = 0, bombCount = 3;
@@ -170,8 +177,8 @@ const magnetSpawnInterval = 15000;
 let lastMagnetSpawnTime = 0;
 let isMagnetActive = false;
 let magnetCoinGain = 0;
-let magnetMessage = '';
-let magnetMessageTime = 0;
+let coinMessage = '';
+let coinMessageTime = 0;
 let wave = 1;
 let waveDuration = 60000;
 let waveStartTime = Date.now();
@@ -318,6 +325,9 @@ function init() {
     heartCount = 0;
     coinCount = 0;
     bombCount = 3;
+    coinMessage = '';
+    coinMessageTime = 0;
+    magnetCoinGain = 0;
     level = 1;
     heartsNeeded = 1;
     updateBulletStats();
@@ -599,14 +609,16 @@ function update() {
                 coinCount += amount;
                 magnetCoinGain += amount;
                 coinCountEl.textContent = coinCount;
+                coinSfx.currentTime = 0;
+                coinSfx.play();
                 coins.splice(i, 1);
             }
         }
         if (allCollected) {
             isMagnetActive = false;
             if (magnetCoinGain > 0) {
-                magnetMessage = `+${magnetCoinGain} COIN GET!`;
-                magnetMessageTime = Date.now();
+                coinMessage = `+${magnetCoinGain} COIN GET!`;
+                coinMessageTime = Date.now();
             }
         }
         return;
@@ -732,8 +744,13 @@ function update() {
         const coin = coins[i];
         if (coin.speed) coin.y += coin.speed;
         if (jack.x < coin.x + coin.width && jack.x + jack.width > coin.x && jack.y < coin.y + coin.height && jack.y + jack.height > coin.y) {
-            coinCount += coin.amount || 1;
+            const amount = coin.amount || 1;
+            coinCount += amount;
             coinCountEl.textContent = coinCount;
+            coinMessage = `+${amount} COIN GET!`;
+            coinMessageTime = Date.now();
+            coinSfx.currentTime = 0;
+            coinSfx.play();
             coins.splice(i, 1);
         }
     }
@@ -908,14 +925,14 @@ function draw() {
         ctx.fillRect(jack.x, jack.y, jack.width, jack.height);
     }
 
-    if (magnetMessage) {
-        if (Date.now() - magnetMessageTime < 1000) {
+    if (coinMessage) {
+        if (Date.now() - coinMessageTime < 1000) {
             ctx.fillStyle = 'yellow';
             ctx.font = '16px Jua';
             ctx.textAlign = 'center';
-            ctx.fillText(magnetMessage, jack.x + jack.width / 2, jack.y - 10);
+            ctx.fillText(coinMessage, jack.x + jack.width / 2, jack.y - 10);
         } else {
-            magnetMessage = '';
+            coinMessage = '';
         }
     }
 
