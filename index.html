@@ -166,14 +166,20 @@ window.addEventListener('pointerdown', () => {
     }).catch(() => {});
 }, { once: true });
 
+const SERVER_URL = 'http://localhost:3000';
+
 const PLAYER_ID_KEY = 'playerId';
+function generatePlayerId() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let id = '';
+    for (let i = 0; i < 5; i++) {
+        id += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return id;
+}
 let playerId = localStorage.getItem(PLAYER_ID_KEY);
 if (!playerId) {
-    if (crypto && crypto.randomUUID) {
-        playerId = crypto.randomUUID();
-    } else {
-        playerId = Math.random().toString(36).slice(2);
-    }
+    playerId = generatePlayerId();
     localStorage.setItem(PLAYER_ID_KEY, playerId);
 }
 document.getElementById('playerIdDisplay').textContent = `ID: ${playerId}`;
@@ -961,12 +967,12 @@ function gameLoop() {
 
 async function updateRanking() {
     try {
-        await fetch('/scores', {
+        await fetch(`${SERVER_URL}/scores`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ playerId, score })
         });
-        const res = await fetch(`/ranking?playerId=${playerId}`);
+        const res = await fetch(`${SERVER_URL}/ranking?playerId=${playerId}`);
         const data = await res.json();
         rankingListEl.innerHTML = '';
         data.top.forEach((r, i) => {
