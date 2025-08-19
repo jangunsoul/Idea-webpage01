@@ -166,8 +166,6 @@ window.addEventListener('pointerdown', () => {
     }).catch(() => {});
 }, { once: true });
 
-const SERVER_URL = 'https://jangunsoul.github.io/Idea-webpage01/Server/';
-
 const PLAYER_ID_KEY = 'playerId';
 function generatePlayerId() {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -965,29 +963,21 @@ function gameLoop() {
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-async function updateRanking() {
-    try {
-        await fetch(`${SERVER_URL}/scores`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ playerId, score })
-        });
-        const res = await fetch(`${SERVER_URL}/ranking?playerId=${playerId}`);
-        const data = await res.json();
-        rankingListEl.innerHTML = '';
-        data.top.forEach((r, i) => {
-            const li = document.createElement('li');
-            li.textContent = `${i + 1}. ${r.score} m`;
-            rankingListEl.appendChild(li);
-        });
-        if (data.rank) {
-            playerRankEl.textContent = `현재 순위: ${data.rank}위`;
-        } else {
-            playerRankEl.textContent = '';
-        }
-    } catch (err) {
-        playerRankEl.textContent = '랭킹을 불러오지 못했습니다.';
-    }
+function updateRanking() {
+    const ranking = JSON.parse(localStorage.getItem('ranking') || '[]');
+    ranking.push(score);
+    ranking.sort((a, b) => b - a);
+    localStorage.setItem('ranking', JSON.stringify(ranking));
+
+    rankingListEl.innerHTML = '';
+    ranking.slice(0, 10).forEach((r, i) => {
+        const li = document.createElement('li');
+        li.textContent = `${i + 1}. ${r} m`;
+        rankingListEl.appendChild(li);
+    });
+
+    const rank = ranking.indexOf(score) + 1;
+    playerRankEl.textContent = `현재 순위: ${rank}위`;
 }
 
 function gameOver() {
@@ -996,9 +986,8 @@ function gameOver() {
     finalScoreEl.textContent = score;
     finalHeartCountEl.textContent = heartCount;
     finalCoinCountEl.textContent = coinCount;
-    updateRanking().finally(() => {
-        gameOverModal.classList.remove('hidden');
-    });
+    updateRanking();
+    gameOverModal.classList.remove('hidden');
 }
 
 canvas.addEventListener('click', createBranch);
