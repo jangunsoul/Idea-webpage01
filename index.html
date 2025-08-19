@@ -169,6 +169,9 @@ let lastStoneSpawnTime = 0;
 const magnetSpawnInterval = 15000;
 let lastMagnetSpawnTime = 0;
 let isMagnetActive = false;
+let magnetCoinGain = 0;
+let magnetMessage = '';
+let magnetMessageTime = 0;
 let wave = 1;
 let waveDuration = 60000;
 let waveStartTime = Date.now();
@@ -204,9 +207,12 @@ stoneImage.src = 'https://i.imgur.com/Asv1GN4.png';
 stoneImage.onload = () => { isStoneImageLoaded = true; };
 
 const magnetImage = new Image();
+magnetImage.crossOrigin = 'anonymous';
 let isMagnetImageLoaded = false;
-magnetImage.src = 'https://i.imgur.com/Z9Pc9Yk.gif';
 magnetImage.onload = () => { isMagnetImageLoaded = true; };
+magnetImage.src = 'https://i.imgur.com/Z9Pc9Yk.gif';
+magnetImage.style.display = 'none';
+document.body.appendChild(magnetImage);
 
 const jack = { width:40, height:40, x:0, y:0, speed:gameSpeed, stalkIndex:1, isMovingHorizontally:false, targetX:0, color:'#2ecc71' };
 let bugs = [], stones = [], branches = [], clouds = [], items = [], coins = [], bullets = [];
@@ -473,6 +479,7 @@ function spawnMagnetItem() {
 
 function activateMagnet() {
     isMagnetActive = true;
+    magnetCoinGain = 0;
     coins.forEach(c => c.speed = 0);
     bugs.forEach(bug => {
         const size = 30;
@@ -588,12 +595,20 @@ function update() {
                 coin.y += dy * 0.2;
                 allCollected = false;
             } else {
-                coinCount += coin.amount || 1;
+                const amount = coin.amount || 1;
+                coinCount += amount;
+                magnetCoinGain += amount;
                 coinCountEl.textContent = coinCount;
                 coins.splice(i, 1);
             }
         }
-        if (allCollected) isMagnetActive = false;
+        if (allCollected) {
+            isMagnetActive = false;
+            if (magnetCoinGain > 0) {
+                magnetMessage = `+${magnetCoinGain} COIN GET!`;
+                magnetMessageTime = Date.now();
+            }
+        }
         return;
     }
 
@@ -674,7 +689,7 @@ function update() {
         }
         const bugCenterX = bug.x + bug.width / 2;
         const bugCenterY = bug.y + bug.height / 2;
-        if (Math.abs(jackCenterX - bugCenterX) < 3 && Math.abs(jackCenterY - bugCenterY) < 3) gameOver();
+        if (Math.abs(jackCenterX - bugCenterX) < 5 && Math.abs(jackCenterY - bugCenterY) < 5) gameOver();
     }
 
     for (let i = stones.length - 1; i >= 0; i--) {
@@ -689,7 +704,7 @@ function update() {
         }
         const stoneCenterX = stone.x + stone.width / 2;
         const stoneCenterY = stone.y + stone.height / 2;
-        if (Math.abs(jackCenterX - stoneCenterX) < 3 && Math.abs(jackCenterY - stoneCenterY) < 3) gameOver();
+        if (Math.abs(jackCenterX - stoneCenterX) < 5 && Math.abs(jackCenterY - stoneCenterY) < 5) gameOver();
     }
 
     for (let i = items.length - 1; i >= 0; i--) {
@@ -891,6 +906,17 @@ function draw() {
     } else {
         ctx.fillStyle = jack.color;
         ctx.fillRect(jack.x, jack.y, jack.width, jack.height);
+    }
+
+    if (magnetMessage) {
+        if (Date.now() - magnetMessageTime < 1000) {
+            ctx.fillStyle = 'yellow';
+            ctx.font = '16px Jua';
+            ctx.textAlign = 'center';
+            ctx.fillText(magnetMessage, jack.x + jack.width / 2, jack.y - 10);
+        } else {
+            magnetMessage = '';
+        }
     }
 
 }
