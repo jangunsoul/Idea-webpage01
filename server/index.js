@@ -4,6 +4,12 @@ const path = require('path');
 
 const DATA_FILE = path.join(__dirname, 'scores.json');
 
+function setCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
 function readScores() {
   try {
     return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -56,6 +62,12 @@ function handleGetRanking(req, res) {
 }
 
 const server = http.createServer((req, res) => {
+  setCors(res);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
   if (req.method === 'POST' && req.url === '/scores') {
     handlePostScores(req, res);
   } else if (req.method === 'GET' && req.url.startsWith('/ranking')) {
