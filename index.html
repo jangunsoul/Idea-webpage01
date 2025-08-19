@@ -162,6 +162,17 @@ window.addEventListener('pointerdown', () => {
         coinSfx.currentTime = 0;
     }).catch(() => {});
 }, { once: true });
+
+const PLAYER_ID_KEY = 'playerId';
+let playerId = localStorage.getItem(PLAYER_ID_KEY);
+if (!playerId) {
+    if (crypto && crypto.randomUUID) {
+        playerId = crypto.randomUUID();
+    } else {
+        playerId = Math.random().toString(36).slice(2);
+    }
+    localStorage.setItem(PLAYER_ID_KEY, playerId);
+}
 let canvasWidth, canvasHeight;
 const aspectRatio = 9 / 16;
 let score = 0, totalDistance = 0, heartCount = 0, coinCount = 0, bombCount = 3;
@@ -944,20 +955,29 @@ function gameLoop() {
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-function updateRanking() {
-    const entry = { score: score, time: Date.now() };
-    const records = JSON.parse(localStorage.getItem('records') || '[]');
-    records.push(entry);
-    records.sort((a, b) => b.score - a.score);
-    const playerRank = records.findIndex(r => r.time === entry.time) + 1;
-    localStorage.setItem('records', JSON.stringify(records));
-    rankingListEl.innerHTML = '';
-    records.slice(0, 10).forEach((r, i) => {
-        const li = document.createElement('li');
-        li.textContent = `${i + 1}. ${r.score} m`;
-        rankingListEl.appendChild(li);
-    });
-    playerRankEl.textContent = `현재 순위: ${playerRank}위`;
+async function updateRanking() {
+    try {
+        await fetch('/scores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId, score })
+        });
+        const res = await fetch(`/ranking?playerId=${playerId}`);
+        const data = await res.json();
+        rankingListEl.innerHTML = '';
+        data.top.forEach((r, i) => {
+            const li = document.createElement('li');
+            li.textContent = `${i + 1}. ${r.score} m`;
+            rankingListEl.appendChild(li);
+        });
+        if (data.rank) {
+            playerRankEl.textContent = `현재 순위: ${data.rank}위`;
+        } else {
+            playerRankEl.textContent = '';
+        }
+    } catch (err) {
+        playerRankEl.textContent = '랭킹을 불러오지 못했습니다.';
+    }
 }
 
 function gameOver() {
@@ -966,8 +986,9 @@ function gameOver() {
     finalScoreEl.textContent = score;
     finalHeartCountEl.textContent = heartCount;
     finalCoinCountEl.textContent = coinCount;
-    updateRanking();
-    gameOverModal.classList.remove('hidden');
+    updateRanking().finally(() => {
+        gameOverModal.classList.remove('hidden');
+    });
 }
 
 canvas.addEventListener('click', createBranch);
